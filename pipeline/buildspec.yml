@@ -1,0 +1,29 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      python: 3.7
+  pre_build:
+    commands:
+      - echo $CODEBUILD_RESOLVED_SOURCE_VERSION > VERSION
+      - cd app/
+      - |
+        if [ -f $CODEBUILD_SRC_DIR/app/os-requirements.txt ]; then
+          echo "############ OS REQUIRED ENCONTRADO ############";
+          yum install $(cat $CODEBUILD_SRC_DIR/app/os-requirements.txt) -y
+        else 
+          echo "############ OS REQUIRED NAO ENCONTRADO ############";
+        fi
+      - pip install bandit flake8
+      - pip install -r $CODEBUILD_SRC_DIR/app/requirements.txt
+      - make lint
+  build:
+    commands:
+      - echo "Build"
+  post_build:
+    commands:
+      - echo "Post Build"            
+artifacts:
+    files:
+       - '**/*'
+    discard-paths: no   
