@@ -1,0 +1,5 @@
+boto3==1.24.78
+redis
+pytest==4.6.5
+coverage==4.5
+pytest-cov==2.9.0
