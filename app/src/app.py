@@ -166,10 +166,74 @@ def get_redis_client():
 # SQS Listener - Change MaxNumberOfMessages and WaitTimeSeconds for prod environment
 def sqs_listenar(consume_queue, response_queue):
     try:
-        logging.config.fileConfig(resolve("logging.config.fileConfig"))
+        logging.config.fileConfig(resolve("logging.config"))
     except FileNotFoundError:
         logging.basicConfig(level=logging.INFO)
     # logging.debug("Teste Splunk - Debug")
     logging.info("Initiate SQS consumer")
 
-    cache = get_redis_client()                                
+    cache = get_redis_client() 
+    if not cache:
+        logging.error("ERROR: Client app will not work")
+    else:
+        while KEEP_RUNNING:
+            try:
+                messages = consume_queue.receive_messages(
+                    MaxNumberOfMessages=10,
+                    WaitTimeSeconds=1
+                )                   
+                for message in messages:
+                    try:
+                        logging.info(f"SQS message received: {message}")
+                        messageHash = hash(message)
+                        if not cache.exists(messageHash):
+                           cache.set(messageHash, str(message))
+                           cache.expire(messageHash, 90)
+                           response = proccess_message(message.body)
+                           if not cache.exists(hash(response)):
+                                cache.set(hash(response), response)
+                                cache.expire(hash(response), 90)
+                                # Send to SQS for signed transactions
+                                response_queue.send_message(
+                                    MessageBody=response)
+                        # TODO: This logging is only for dev purposal,
+                        # withdraw when everything is done
+                        logging.info(f"Cacje keys in Redis - {cache.keys()}")
+                    except Exception as e2:
+                        logging.error(
+                            f"ERROR: Exception while processing message: "
+                            f"{repr(e2)}"
+                        )            
+                        continue
+                      message.delete()
+              except Exception as e1:
+                   logging.error(
+                        f"ERROR: Exception while receive messages: {repr(e1)}")
+                   
+
+def encrypt_text(plain_text):
+    key_id = get_key_id()
+    encripted_payload = kms_client.encrypt(keyId=key_id,
+                                            Plaintext=plain_text.encode('ascii'))
+    result_encode = base64.b64encode(encripted_payload['CiphertextBlob'])\
+        .decode('ascii')
+    return result_encode
+    # TODE tratar exceções conforme documentacao    
+
+
+def get_key_id():
+    keys_alias = kms_client.list_aliases()
+
+    # ger elemente on name combine with alias
+    selected_key = list(filter(lambda key: key['AliasName'] == ENCLAVE_ALIAS,
+                                keys_alias['Aliases']))
+    
+    # validate if key exists
+    if len(selected_key) > 0:
+        message = "KMS enclave_key found with id: " \
+                  f"{selected_key[0]['TargetKeyId']}"
+        logging.info(message)
+        return selected_key[0]['TargetKeyId'] 
+
+    # log error if not found key
+    logging.error('ERROR: No Key named enclaves_key found')         
