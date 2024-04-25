@@ -4,7 +4,7 @@ LABEL maintainer Gabriel Galeazzi (gabriel.galeazzi@itau-unibanco.com.br)
 
 # Install apt dependencies
 RUN yum install -y \
-    gcc gcc-c++ freetype=devel yum-utils findutils openssl-devel \
+    gcc gcc-c++ freetype-devel yum-utils findutils openssl-devel \
     && yum update rpm -y \
     && rm - rf /var/cache/yum/*
 
